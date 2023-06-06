@@ -8,10 +8,10 @@
 #include "stm32l4xx_hal.h"
 
 // Pre-Defined GPIO PORTS
-#define LED_PORT GPIOE
-#define LED_PORT_EN RCC_AHB2ENR_GPIOEEN
-#define BUZZER_PORT GPIOF
-#define BUZZER_PORT_EN RCC_AHB2ENR_GPIOFEN
+#define LED_PORT GPIOF
+#define LED_PORT_EN RCC_AHB2ENR_GPIOEFN
+#define BUZZER_PORT GPIOE
+#define BUZZER_PORT_EN RCC_AHB2ENR_GPIOEEN
 
 // Function Prototypes
 void alarm_init(void);
