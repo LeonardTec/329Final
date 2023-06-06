@@ -6,6 +6,7 @@
  *	Buzzer Pin: PF1
  *	Blue LED: PE7
  *	Red LED: PE8
+ *      TEST
  */
 #include "alarm.h"
 
