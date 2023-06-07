@@ -23,11 +23,14 @@
 #include "keypad.h"
 #include "password.h"
 #include "led.h"
+#include "alarm.h"
+#include "control.h"
 
 void SystemClock_Config(void);
 
 // STATES for FSM
-typedef enum  { ST_PASSWORD, ST_CONTROL, ST_SECURITY } state_type;
+typedef enum  { ST_PASSWORD, ST_CONTROL, ST_SECURITY, ST_ROOM1, ST_ROOM2, ST_ROOM3,
+				ST_FAN, ST_LIGHT1, ST_BRIGHT1, ST_BRIGHT2, ST_BRIGHT3} state_type;
 state_type state = ST_PASSWORD;
 
 
@@ -44,52 +47,195 @@ int main(void) {
   // Initializing LEDS
   LED_control_init();
 
-  // Initializing DAC
-  DAC_init();
+  // Initializing DACs
+  DAC_init1();
+  DAC_init2();
+  DAC_init3();
 
-  // FSM: STATE PASSWORD
-  password_welcome();
-  for(int i = TRIALS; i > 0; i--) {
-	  attempts--;
-	  password_update();
-	  lock = password_type();
-	  password_display(attempts,lock);
-	  //password_exit(attempts,lock);
-	  if (attempts == 0) {
-		  if (!lock) {
-			  LCD_init();
-			  LCD_home();
-			  LCD_write_string("POLICE IS ON ITS");
-		  	  LCD_second_line();
-		  	  LCD_write_string("WAY, THANK YOU!");
-		  	  LED_toggle(2); // Turn OFF Yellow LED
-		  	  LED_toggle(3); // Turn On BLUE LED
-		  }
-	  }
-	  if (lock)
-		  break;
-  }
-
-  // DAC 1 is READY to ACCEPT COMMANDS
-  //DAC_PORT -> ODR ^= GPIO_PIN_0;
-  // Write 3.3V on DAC1
-  DAC_write(0x0FFF);
-
-  // DAC 1 is SENT TO SLEEP
-  //DAC_PORT -> ODR ^= GPIO_PIN_0;
-  // DAC 2 is READY to ACCEPT COMMANDS
-  //DAC_PORT -> ODR ^= GPIO_PIN_1;
-
-  // Write V on DAC2
-  //DAC_write(0x08FF);
+  // Variables for Room Brightness, default to minimum
+  int light1 = MIN_BRIGHTNESS;
+  int light2 = MIN_BRIGHTNESS;
+  int light3 = MIN_BRIGHTNESS;
 
   while (1) {
-    /* USER CODE END WHILE */
+	  switch(state) {
+	  case ST_PASSWORD: 	  // FSM: STATE PASSWORD
+	  	  password_welcome(); // Ask user for 5-digit password
+	  	  // 5 Attempts to get correct password
+	      for(int i = TRIALS; i > 0; i--) {
+	    	  attempts--;			// 1 Attempt less
+	    	  password_update();	// Prompts for input
+	    	  lock = password_type();	// Returns a flag of Password was Correct [1] or not [0]
+	    	  // Was the password correct?
+	    	  if (lock) {	// Yes
+	    		  password_display_correct();
+	    		  state = ST_CONTROL;	// Change to CONTROL STATE
+	    		  break;				//  Exit the for-loop
+	    	  }
+	    	  // Incorrect Password
+	    	  else {
+	    		  password_display_incorrect(attempts);	// Display incorrect password
+	    		  if (attempts == 0) { // If you ran out attempts
+	    			  password_display_incorrect_security(); // Display for police
+	    			  state = ST_SECURITY;	// Enter SECURITY STATE
+	    			  break;	// Break from for-loop
+	    		  }
 
-    /* USER CODE BEGIN 3 */
-  }
-  /* USER CODE END 3 */
-}
+	    	  } // End of else-statement
+	    } // End of for-loop
+	      break;
+
+	  case ST_SECURITY:
+		  alarm_init();
+		  while(1){}	// Stuck here foreva!
+		  break;
+
+	  case ST_CONTROL: // STATE CONTROL for FSM
+		  control_room_select();
+		  int room = 0;
+		  room = control_keypad();
+		  if (room == 1)
+			  state = ST_ROOM1;
+		  else if (room == 2)
+			  state = ST_ROOM2;
+		  else if (room == 3)
+			  state = ST_ROOM3;
+		  break;
+
+	 case ST_ROOM1:
+		 control_room1_display();
+		 //int command = -1;
+		 int command1 = control_keypad();
+		 if (command1 == 1)
+			 state = ST_LIGHT1;
+		 else if (command1 == 2)
+			 state = ST_FAN;
+		 else if (command1 == 9)
+			 state = ST_CONTROL;
+		 break;
+
+	 case ST_ROOM2:
+		 control_light2or3();
+		 //int command = -1;
+		 int command2 = control_keypad();
+		 if (command2 == 1)
+			 state = ST_BRIGHT2;
+		 else if (command2 == 2)
+			 DAC_write2(0);
+		 else if (command2 == 0)
+			 state = ST_CONTROL;
+		 break;
+
+	 case ST_ROOM3:
+	 	 control_light2or3();
+	 	 //int command = -1;
+		 int command3 = control_keypad();
+	 	 if (command3 == 1)
+	 		 state = ST_BRIGHT3;
+		 else if (command3 == 2)
+			 DAC_write3(0);
+		 else if (command3 == 0)
+ 			 state = ST_CONTROL;
+		 break;
+
+	 case ST_LIGHT1:
+	 	 control_light1();
+	 	 //int command = -1;
+		 int command4 = control_keypad();
+	 	 if (command4 == 1)
+	 		 state = ST_BRIGHT1;
+		 else if (command4 == 2)
+			 DAC_write1(0);
+		 else if (command4 == 0)
+ 			 state = ST_ROOM1;
+		 else if (command4 == 9)
+			 state = ST_CONTROL;
+		 break;
+
+	 case ST_BRIGHT1:
+		 DAC_write1(light1);
+		 control_brightness();
+		 //int key = -1;
+		 int key1 = control_keypad();
+		 if (key1 == 1) {
+			 if (light1 < 4000) {
+				 light1 += 200;
+				 DAC_write1(light1);
+			 }
+		 }
+		 else if (key1 == 2) {
+			 if (light1 > 2200) {
+				 light1 -= 200;
+				 DAC_write1(light1);
+			 }
+		 }
+		 else if (key1 == 0)
+			 state = ST_LIGHT1;
+		 else if (key1 == 9)
+			 state = ST_CONTROL;
+		 break;
+
+	 case ST_BRIGHT2:
+		 DAC_write2(light2);
+		 control_brightness();
+		 //int key = -1;
+		 int key2 = control_keypad();
+		 if (key2 == 1) {
+			 if (light2 < 4000) {
+				 light2 += 200;
+				 DAC_write2(light2);
+			 }
+		 }
+		 else if (key2 == 2) {
+			 if (light2 > 2200) {
+				 light2 -= 200;
+				 DAC_write2(light2);
+			 }
+		 }
+		 else if (key2 == 0)
+			 state = ST_ROOM2;
+		 else if (key2 == 9)
+			 state = ST_CONTROL;
+		 break;
+
+	 case ST_BRIGHT3:
+		 DAC_write3(light3);
+		 control_brightness();
+		 //int key = -1;
+		 int key3 = control_keypad();
+		 if (key3 == 1) {
+			 if (light3 < 4000) {
+				 light3 += 200;
+				 DAC_write3(light3);
+			 }
+		 }
+		 else if (key3 == 2) {
+			 if (light3 > 2200) {
+				 light3 -= 200;
+				 DAC_write3(light3);
+			 }
+		 }
+		 else if (key3 == 0)
+			 state = ST_ROOM3;
+		 else if (key3 == 9)
+			 state = ST_CONTROL;
+		 break;
+
+	 case ST_FAN:
+		 control_fan_init();
+		 control_fan();
+		 //int key = -1;
+		 int key4 = control_keypad();
+		 if (key4 == 1)
+			 MOTOR_PORT -> ODR ^= GPIO_PIN_0;
+		 else if (key4 == 0)
+			 state = ST_ROOM1;
+		 else if (key4 == 9)
+			 state = ST_CONTROL;
+		 break;
+ 	  }// End of switch-statement
+  } // End of while-loop
+} // End of Main
 
 /**
   * @brief System Clock Configuration
