@@ -36,205 +36,196 @@ state_type state = ST_PASSWORD;
 
 int main(void) {
   int attempts = TRIALS;
-  // 1: CORRECT, 0: INCORRECT
-  int lock = 0;
-  //int exit = 0;
+  int lock = 0;   // 1: CORRECT, 0: INCORRECT
   HAL_Init();
   SystemClock_Config();
 
-  // System initializing
+  // Initializing System
   password_init();
-  // Initializing LEDS
-  LED_control_init();
 
+  // Initializing State LEDs
+  LED_control_init();
+	// Initialize the FAN GPIO PIN
+  control_fan_init();
   // Initializing DACs
   DAC_init1();
   DAC_init2();
   DAC_init3();
 
-  // Variables for Room Brightness, default to minimum
-  int light1 = MIN_BRIGHTNESS;
-  int light2 = MIN_BRIGHTNESS;
-  int light3 = MIN_BRIGHTNESS;
+  // Variables for Room Brightness, default to 50% intensity (3000mV)
+  int light1 = DEFAULT_BRIGHTNESS;
+  int light2 = DEFAULT_BRIGHTNESS;
+  int light3 = DEFAULT_BRIGHTNESS;
 
+  // Begin of while loop
   while (1) {
 	  switch(state) {
 	  case ST_PASSWORD: 	  // FSM: STATE PASSWORD
 	  	  password_welcome(); // Ask user for 5-digit password
-	  	  // 5 Attempts to get correct password
-	      for(int i = TRIALS; i > 0; i--) {
+	      for(int i = TRIALS; i > 0; i--) {  // 5 Attempts to get correct password
 	    	  attempts--;			// 1 Attempt less
 	    	  password_update();	// Prompts for input
 	    	  lock = password_type();	// Returns a flag of Password was Correct [1] or not [0]
 	    	  // Was the password correct?
 	    	  if (lock) {	// Yes
-	    		  password_display_correct();
+	    		  password_display_correct(); // Display Correct password
 	    		  state = ST_CONTROL;	// Change to CONTROL STATE
 	    		  break;				//  Exit the for-loop
 	    	  }
-	    	  // Incorrect Password
-	    	  else {
+	    	  else { 	    	  // Incorrect Password
 	    		  password_display_incorrect(attempts);	// Display incorrect password
 	    		  if (attempts == 0) { // If you ran out attempts
-	    			  password_display_incorrect_security(); // Display for police
+	    			  password_display_incorrect_security(); // Display Security Message
 	    			  state = ST_SECURITY;	// Enter SECURITY STATE
 	    			  break;	// Break from for-loop
 	    		  }
-
 	    	  } // End of else-statement
 	    } // End of for-loop
 	      break;
 
-	  case ST_SECURITY:
-		  alarm_init();
-		  while(1){}	// Stuck here foreva!
+	  case ST_SECURITY:		// STATE SECURITY
+		  alarm_init();		// Trigger Alarm
+		  while(1){}		// Stay here until hard-reset
 		  break;
 
-	  case ST_CONTROL: // STATE CONTROL for FSM
-		  control_room_select();
-		  int room = 0;
-		  room = control_keypad();
-		  if (room == 1)
+	  case ST_CONTROL: // STATE CONTROL
+		  control_room_select();	// Prompt which room to select
+		  int room = control_keypad();	// Get value from keypad
+		  if (room == 1)			// Room 1
 			  state = ST_ROOM1;
-		  else if (room == 2)
+		  else if (room == 2)		// Room 2
 			  state = ST_ROOM2;
-		  else if (room == 3)
+		  else if (room == 3)		// Room 3
 			  state = ST_ROOM3;
-		  break;
+		  break;					// Invalid keypress
 
-	 case ST_ROOM1:
-		 control_room1_display();
-		 //int command = -1;
-		 int command1 = control_keypad();
-		 if (command1 == 1)
+	 case ST_ROOM1:	// ROOM 1 STATE
+		 control_room1_display();	// Prompt for Light or Fan
+		 int command1 = control_keypad();	// Get value from keypad
+		 if (command1 == 1)			// Lights
 			 state = ST_LIGHT1;
-		 else if (command1 == 2)
+		 else if (command1 == 2)	// Fan
 			 state = ST_FAN;
-		 else if (command1 == 9)
+		 else if (command1 == 9)	// Return
 			 state = ST_CONTROL;
 		 break;
 
-	 case ST_ROOM2:
-		 control_light2or3();
-		 //int command = -1;
-		 int command2 = control_keypad();
-		 if (command2 == 1)
+	 case ST_ROOM2:	// ROOM 2 STATE
+		 control_light2or3();		// Prompt for Lights ON or OFF
+		 int command2 = control_keypad(); // Get value from keypad
+		 if (command2 == 1)			// Lights ON
 			 state = ST_BRIGHT2;
-		 else if (command2 == 2)
+		 else if (command2 == 2)	// Lights OFF
 			 DAC_write2(0);
-		 else if (command2 == 0)
+		 else if (command2 == 0)	// Return
 			 state = ST_CONTROL;
 		 break;
 
-	 case ST_ROOM3:
-	 	 control_light2or3();
-	 	 //int command = -1;
-		 int command3 = control_keypad();
-	 	 if (command3 == 1)
+	 case ST_ROOM3: // ROOM 3 STATE
+	 	 control_light2or3();		// Prompt for Lights ON or OFF
+		 int command3 = control_keypad(); // Get value from keypad
+	 	 if (command3 == 1)			// Lights ON
 	 		 state = ST_BRIGHT3;
-		 else if (command3 == 2)
+		 else if (command3 == 2)	// Lights OFF
 			 DAC_write3(0);
-		 else if (command3 == 0)
+		 else if (command3 == 0)	// Return
  			 state = ST_CONTROL;
 		 break;
 
-	 case ST_LIGHT1:
-	 	 control_light1();
-	 	 //int command = -1;
-		 int command4 = control_keypad();
-	 	 if (command4 == 1)
+	 case ST_LIGHT1:	// LIGHTS FOR ROOM 1 STATE
+	 	 control_light1();			// Prompt for Lights ON or OFF
+		 int command4 = control_keypad();	// Get value from keypad
+	 	 if (command4 == 1)			// Lights ON
 	 		 state = ST_BRIGHT1;
-		 else if (command4 == 2)
+		 else if (command4 == 2)	// Lights OFF
 			 DAC_write1(0);
-		 else if (command4 == 0)
+		 else if (command4 == 0)	// Return
  			 state = ST_ROOM1;
-		 else if (command4 == 9)
+		 else if (command4 == 9)	// Home
 			 state = ST_CONTROL;
 		 break;
 
-	 case ST_BRIGHT1:
-		 DAC_write1(light1);
-		 control_brightness();
-		 //int key = -1;
-		 int key1 = control_keypad();
-		 if (key1 == 1) {
-			 if (light1 < 4000) {
-				 light1 += 200;
+	 case ST_BRIGHT1:	// BRIGHT ROOM 1 STATE
+		 DAC_write1(light1);		  	// Turn on Lights to previously store value
+		 control_brightness();			// Prompt for Brighting of Dimming
+		 int key1 = control_keypad(); 	// Get value from keypad
+		 if (key1 == 1) {				// Brighting up to 4000mV MAX
+			 if (light1 < MAX_BRIGHTNESS) {
+				 light1 += BRIGHT_CHANGE;
 				 DAC_write1(light1);
 			 }
 		 }
-		 else if (key1 == 2) {
-			 if (light1 > 2200) {
-				 light1 -= 200;
+		 else if (key1 == 2) {			// Dimming up to 2000mV MIN
+			 if (light1 > MIN_BRIGHTNESS) {
+				 light1 -= BRIGHT_CHANGE;
 				 DAC_write1(light1);
 			 }
 		 }
-		 else if (key1 == 0)
+		 else if (key1 == 0)			// Return
 			 state = ST_LIGHT1;
-		 else if (key1 == 9)
+		 else if (key1 == 9)			// Home
 			 state = ST_CONTROL;
 		 break;
 
-	 case ST_BRIGHT2:
-		 DAC_write2(light2);
-		 control_brightness();
-		 //int key = -1;
-		 int key2 = control_keypad();
-		 if (key2 == 1) {
-			 if (light2 < 4000) {
-				 light2 += 200;
+	 case ST_BRIGHT2:				// BRIGHT ROOM 2 STATE
+		 DAC_write2(light2);			// Turn on Lights to previously store value
+		 control_brightness();			// Prompt for Brighting of Dimming
+		 int key2 = control_keypad();	// Get value from keypad
+		 if (key2 == 1) {				// Brighting up to 4000mV MAX
+			 if (light2 < MAX_BRIGHTNESS) {
+				 light2 += BRIGHT_CHANGE;
 				 DAC_write2(light2);
 			 }
 		 }
-		 else if (key2 == 2) {
-			 if (light2 > 2200) {
-				 light2 -= 200;
+		 else if (key2 == 2) {			// Dimming up to 2000mV MIN
+			 if (light2 > MIN_BRIGHTNESS) {
+				 light2 -= BRIGHT_CHANGE;
 				 DAC_write2(light2);
 			 }
 		 }
-		 else if (key2 == 0)
+		 else if (key2 == 0)			// Return
 			 state = ST_ROOM2;
-		 else if (key2 == 9)
+		 else if (key2 == 9)			// Home
 			 state = ST_CONTROL;
 		 break;
 
-	 case ST_BRIGHT3:
-		 DAC_write3(light3);
-		 control_brightness();
-		 //int key = -1;
-		 int key3 = control_keypad();
-		 if (key3 == 1) {
-			 if (light3 < 4000) {
-				 light3 += 200;
+	 case ST_BRIGHT3:				// BRIGHT ROOM 3 STATE
+		 DAC_write3(light3);			// Turn on Lights to previously store value
+		 control_brightness();			// Prompt for Brighting of Dimming
+		 int key3 = control_keypad();	// Get value from keypad
+		 if (key3 == 1) {				// Brighting up to 4000mV MAX
+			 if (light3 < MAX_BRIGHTNESS) {
+				 light3 += BRIGHT_CHANGE;
 				 DAC_write3(light3);
 			 }
 		 }
-		 else if (key3 == 2) {
-			 if (light3 > 2200) {
-				 light3 -= 200;
+		 else if (key3 == 2) {			// Dimming up to 2000mV MIN
+			 if (light3 > MIN_BRIGHTNESS) {
+				 light3 -= BRIGHT_CHANGE;
 				 DAC_write3(light3);
 			 }
 		 }
-		 else if (key3 == 0)
+		 else if (key3 == 0)			// Return
 			 state = ST_ROOM3;
-		 else if (key3 == 9)
+		 else if (key3 == 9)			// Home
 			 state = ST_CONTROL;
 		 break;
 
-	 case ST_FAN:
-		 control_fan_init();
-		 control_fan();
-		 //int key = -1;
-		 int key4 = control_keypad();
-		 if (key4 == 1)
+	 case ST_FAN:						// FAN STATE
+		 control_fan();					// Prompt for fan ON/OFF
+		 int key4 = control_keypad();	// Get value from keypad
+		 if (key4 == 1)					// Turn on/off
 			 MOTOR_PORT -> ODR ^= GPIO_PIN_0;
-		 else if (key4 == 0)
+		 else if (key4 == 0)			// Return
 			 state = ST_ROOM1;
-		 else if (key4 == 9)
+		 else if (key4 == 9)			// Home
 			 state = ST_CONTROL;
 		 break;
+
  	  }// End of switch-statement
+
   } // End of while-loop
+
 } // End of Main
 
 /**
