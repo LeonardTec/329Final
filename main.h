@@ -30,7 +30,11 @@ extern "C" {
 #include "stm32l4xx_hal.h"
 
 // MACRO DEFINITIONS
-#define TRIALS 5
+#define TRIALS 				  5
+#define MAX_BRIGHTNESS	   4000
+#define MIN_BRIGHTNESS     2200
+#define BRIGHT_CHANGE       200
+#define DEFAULT_BRIGHTNESS 3000
 
 void Error_Handler(void);
 
